@@ -5,6 +5,10 @@ from groq import RateLimitError, APIConnectionError, APIStatusError
 from app.schemas import ChatRequest, ChatResponse
 from app.services.ai_service import generate_reply
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 app = FastAPI(
     title="MindMate API",
@@ -58,13 +62,19 @@ async def chat(request: ChatRequest):
             detail="Unable to connect to the AI service. Please try again."
         )
 
-    except APIStatusError:
+    except APIStatusError as e:
+        logger.error(
+            "Groq API error: status=%s, response=%s",
+            e.status_code,
+            getattr(e, "body", None)
+        )
         raise HTTPException(
             status_code=502,
             detail="The AI service returned an error. Please try again."
         )
 
     except Exception:
+        logger.exception("Unexpected error in MindMate chat endpoint")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong. Please try again."
