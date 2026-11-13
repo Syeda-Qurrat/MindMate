@@ -1,6 +1,8 @@
-
-fastapi
-uvicorn[standard]
-groq
-pydantic-settings
-python-dotenv
+# MindMate backend - versions below are the ones the test suite was run against.
+fastapi==0.162.4
+uvicorn[standard]==0.54.0
+groq==1.7.0
+pydantic-settings==2.16.2
+google-auth==2.62.2
+cryptography==50.0.2
+requests==2.34.2

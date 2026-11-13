@@ -1,10 +1,12 @@
-
-import { Heart, UserRound } from 'lucide-react'
+import { Heart, UserRound, Phone } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+import { HELP_RESOURCES } from '../../data/wellnessContent'
+
 function ChatMessage({ message }) {
   const isUser = message.sender === 'user'
+  const isCrisis = !isUser && message.crisis === true
 
   return (
     <div className={`flex gap-3 mb-6 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -30,7 +32,9 @@ function ChatMessage({ message }) {
           className={`inline-block max-w-full min-w-0 text-left px-4 py-3 rounded-2xl text-sm leading-7 ${
             isUser
               ? 'bg-[#9878d4] text-white rounded-tr-sm'
-              : 'bg-white border border-[#eee8f5] text-[#493b60] rounded-tl-sm'
+              : isCrisis
+                ? 'bg-[#fff7f8] border-2 border-[#d97883] text-[#493b60] rounded-tl-sm'
+                : 'bg-white border border-[#eee8f5] text-[#493b60] rounded-tl-sm'
           }`}
         >
           {isUser ? (
@@ -54,6 +58,22 @@ function ChatMessage({ message }) {
             </div>
           )}
         </div>
+
+        {isCrisis && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {HELP_RESOURCES.contacts.map((contact) => (
+              <a
+                key={contact.name}
+                href={`tel:${contact.phone.replace(/[^0-9+]/g, '')}`}
+                aria-label={`Call ${contact.name} on ${contact.phone}`}
+                className="inline-flex items-center gap-2 bg-[#d97883] hover:bg-[#c4626e] text-white px-4 py-2 rounded-xl text-xs font-semibold transition"
+              >
+                <Phone size={14} />
+                {contact.name.replace(/\s*\(.*\)/, '')} {contact.phone}
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
     </div>

@@ -26,6 +26,8 @@ function ChatInput({ onSend, disabled }) {
         onChange={(e) => setInput(e.target.value)}
         placeholder="Share what's on your mind..."
         disabled={disabled}
+        maxLength={2000}
+        aria-label="Your message"
         className="flex-1 min-w-0 bg-transparent outline-none text-sm text-[#493b60] placeholder:text-[#b0a7bb] py-3"
       />
 

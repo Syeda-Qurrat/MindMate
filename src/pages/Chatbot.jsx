@@ -1,11 +1,13 @@
-
 import { useState, useEffect } from 'react'
-import { sendMessageToMindMate } from '../api/chat'
+import { sendMessageToMindMate, ChatApiError } from '../api/chat'
 import {
   Heart,
   Menu,
   ShieldCheck,
-  MessageCircleHeart
+  MessageCircleHeart,
+  CircleAlert,
+  RotateCcw,
+  X
 } from 'lucide-react'
 
 import DashboardLayout from '../components/layout/DashboardLayout'
@@ -60,6 +62,7 @@ function Chatbot() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [loadingChats, setLoadingChats] = useState(true)
+  const [chatError, setChatError] = useState(null)
 
   const activeChat = conversations.find(
     (chat) => chat.id === activeId
@@ -218,6 +221,60 @@ function Chatbot() {
     }
   }
 
+  // Ask the AI backend for a reply to `history` (it ends with a user message).
+  // Errors are shown in a banner and are NOT saved into the conversation.
+  const requestReply = async (conversationId, history) => {
+    setIsTyping(true)
+    setChatError(null)
+
+    let botMessage
+
+    try {
+      // Send only the most recent messages to the AI backend
+      const apiMessages = history
+        .slice(-12)
+        .map((message) => ({
+          role: message.sender === 'bot' ? 'assistant' : 'user',
+          content: message.text
+        }))
+
+      const { reply, crisis } = await sendMessageToMindMate(apiMessages)
+
+      botMessage = {
+        id: `${Date.now() + 1}`,
+        sender: 'bot',
+        text: reply,
+        ...(crisis ? { crisis: true } : {})
+      }
+    } catch (error) {
+      console.error('MindMate Error:', error)
+
+      setChatError({
+        conversationId,
+        text:
+          error instanceof ChatApiError
+            ? error.message
+            : "I'm having trouble connecting right now. Please try again in a moment. 💜"
+      })
+      setIsTyping(false)
+      return
+    }
+
+    try {
+      await updateChatMessages(conversationId, [...history, botMessage])
+    } catch (saveError) {
+      console.error('Error saving reply:', saveError)
+
+      setChatError({
+        conversationId,
+        text: "MindMate replied, but the reply couldn't be saved to your history.",
+        canRetry: false
+      })
+    } finally {
+      setIsTyping(false)
+    }
+  }
+
   // Send a message
   const handleSend = async (text) => {
     if (isTyping || !activeChat || !text.trim()) return
@@ -239,13 +296,11 @@ function Chatbot() {
       : activeChat.title
 
     setIsTyping(true)
+    setChatError(null)
 
     try {
       // Save the user's message
-      await updateChatMessages(
-        conversationId,
-        updatedMessages
-      )
+      await updateChatMessages(conversationId, updatedMessages)
 
       // Update title for the first user message
       if (isFirstMessage) {
@@ -263,50 +318,30 @@ function Chatbot() {
           )
         )
       }
-
-      // Send recent messages to the AI backend
-      const apiMessages = updatedMessages
-        .slice(-12)
-        .map((message) => ({
-          role: message.sender === 'bot'
-            ? 'assistant'
-            : 'user',
-          content: message.text
-        }))
-
-      const reply = await sendMessageToMindMate(apiMessages)
-
-      const botMessage = {
-        id: `${Date.now() + 1}`,
-        sender: 'bot',
-        text: reply
-      }
-
-      await updateChatMessages(
-        conversationId,
-        [...updatedMessages, botMessage]
-      )
-
     } catch (error) {
-      console.error('MindMate Error:', error)
+      console.error('Error saving message:', error)
 
-      const errorMessage = {
-        id: `${Date.now() + 1}`,
-        sender: 'bot',
-        text: "I'm having trouble connecting right now. Please try again in a moment. 💜"
-      }
-
-      try {
-        await updateChatMessages(
-          conversationId,
-          [...updatedMessages, errorMessage]
-        )
-      } catch (saveError) {
-        console.error('Error saving message:', saveError)
-      }
-    } finally {
+      setChatError({
+        conversationId,
+        text: "Your message couldn't be saved. Please check your connection and try again."
+      })
       setIsTyping(false)
+      return
     }
+
+    await requestReply(conversationId, updatedMessages)
+  }
+
+  // Re-ask for a reply to the last user message after an error
+  const handleRetry = () => {
+    if (isTyping || !activeChat) return
+
+    if (messages[messages.length - 1]?.sender !== 'user') {
+      setChatError(null)
+      return
+    }
+
+    requestReply(activeChat.id, messages)
   }
 
   const handleSuggestion = (text) => {
@@ -450,6 +485,39 @@ function Chatbot() {
                       <div className="bg-[#faf8ff] rounded-2xl px-5 py-4 text-sm text-[#9878d4]">
                         MindMate is thinking...
                       </div>
+                    </div>
+                  )}
+
+                  {chatError && chatError.conversationId === activeId && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-3 bg-[#fbe9ec] text-[#b04b5a] rounded-2xl p-4 mb-6 text-sm"
+                    >
+                      <CircleAlert size={18} className="shrink-0 mt-0.5" />
+
+                      <div className="flex-1 min-w-0">
+                        <p>{chatError.text}</p>
+
+                        {chatError.canRetry !== false && (
+                          <button
+                            type="button"
+                            onClick={handleRetry}
+                            disabled={isTyping}
+                            className="mt-2 inline-flex items-center gap-1 font-semibold underline disabled:opacity-50"
+                          >
+                            <RotateCcw size={14} /> Try again
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setChatError(null)}
+                        aria-label="Dismiss error"
+                        className="shrink-0 p-1 rounded-lg hover:bg-[#f6d5da]"
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
                   )}
                 </div>
